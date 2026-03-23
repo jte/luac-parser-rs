@@ -139,12 +139,15 @@ fn take_lv_float(input: &[u8]) -> IResult<&[u8], LuaConstant> {
 }
 
 fn le_u8_minus_one(input: &[u8]) -> IResult<&[u8], u8> {
-    let (mut input, out) = le_u8(input)?;
-    if out == 0xFF {
-        // TODO: usize
-        (input, out) = complete::le_u64(input)?;
-    }
-    Ok((input, out - 1))
+	let (mut input, first) = le_u8(input)?;
+	let mut out = first as u64;
+
+	if out == 0xFF {
+		let (i, v) = complete::le_u64(input)?;
+		input = i;
+		out = v;
+	}
+    Ok((input, (out - 1).try_into().unwrap()))
 }
 
 fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {

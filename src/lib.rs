@@ -1,5 +1,3 @@
-#![feature(ptr_sub_ptr, lazy_cell, box_patterns)]
-
 use bincode::{Decode, Encode};
 use std::{borrow::Cow, rc::Rc};
 
@@ -150,11 +148,14 @@ impl std::fmt::Debug for LuaConstant {
                 .field(&String::from_utf8_lossy(arg0))
                 .finish(),
             Self::Proto(i) => f.debug_tuple("Proto").field(i).finish(),
-            Self::Table(box ConstTable { array, hash }) => f
-                .debug_struct("Table")
-                .field("array", array)
-                .field("hash", hash)
-                .finish(),
+			Self::Table(inner) => {
+				let t = inner.as_ref();
+				f.debug_struct("Table")
+					.field("array", &t.array)
+					.field("hash", &t.hash)
+					.finish()
+			}
+
             // Self::Imp(imp) => f.debug_tuple("Imp").field(imp).finish(),
         }
     }
@@ -502,7 +503,9 @@ pub fn parse(input: &[u8]) -> Result<LuaBytecode, String> {
     lua_bytecode(input).map(|x| x.1).map_err(|e| {
         format!(
             "{:#?}",
-            e.map(|e| e.map_locations(|p| unsafe { p.as_ptr().sub_ptr(input.as_ptr()) }))
+            e.map(|e| e.map_locations(|p| {
+				(p.as_ptr() as usize) - (input.as_ptr() as usize)
+			}))
         )
     })
 }
