@@ -138,23 +138,9 @@ fn take_lv_float(input: &[u8]) -> IResult<&[u8], LuaConstant> {
     Ok((input, LuaConstant::Number(LuaNumber::Float(f as _))))
 }
 
-fn le_u8_minus_one(input: &[u8]) -> IResult<&[u8], u8> {
-	let (mut input, first) = le_u8(input)?;
-	let mut out = first as u64;
-
-	if out == 0xFF {
-		let (i, v) = complete::le_u64(input)?;
-		input = i;
-		out = v;
-	}
-    Ok((input, (out - 1).try_into().unwrap()))
-}
-
 fn take_lv_str(input: &[u8]) -> IResult<&[u8], LuaConstant> {
-    let (input, (_, data)) = tuple((
-        alt((tag(b"\x04"), tag("\x14"))),
-        length_data(le_u8_minus_one),
-    ))(input)?;
+    // Strings of 254+ bytes use the 0xFF + size_t length form.
+    let (input, (_, data)) = tuple((alt((tag(b"\x04"), tag("\x14"))), load_string))(input)?;
 
     Ok((input, LuaConstant::from(data.to_vec())))
 }
