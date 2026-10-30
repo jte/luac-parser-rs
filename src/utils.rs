@@ -54,6 +54,7 @@ impl LuaConstant {
             Self::Null => "nil".into(),
             Self::Proto(i) => format!("function<{i}>"),
             Self::Table { .. } => "{}".into(),
+            Self::Vector([x, y, z, _]) => format!("vector.create({x}, {y}, {z})"),
             // Self::Imp(imp) => format!("imp<{imp}>"),
         }
     }

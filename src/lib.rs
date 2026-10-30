@@ -103,6 +103,8 @@ pub enum LuaConstant {
     // for luajit
     Proto(usize),
     Table(Box<ConstTable>),
+    /// Luau vector constant (x, y, z, w).
+    Vector([f64; 4]),
     // // for luau
     // Imp(u32),
 }
@@ -125,6 +127,7 @@ impl Serialize for LuaConstant {
             }
             LuaConstant::Proto(p) => p.serialize(ser),
             LuaConstant::Table(t) => t.serialize(ser),
+            LuaConstant::Vector(v) => v.serialize(ser),
         }
     }
 }
@@ -149,6 +152,7 @@ impl std::fmt::Debug for LuaConstant {
                 .field(&String::from_utf8_lossy(arg0))
                 .finish(),
             Self::Proto(i) => f.debug_tuple("Proto").field(i).finish(),
+            Self::Vector(v) => f.debug_tuple("Vector").field(v).finish(),
 			Self::Table(inner) => {
 				let t = inner.as_ref();
 				f.debug_struct("Table")
@@ -162,7 +166,7 @@ impl std::fmt::Debug for LuaConstant {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaLocal {
     pub name: String,
     pub start_pc: u64,
@@ -170,7 +174,7 @@ pub struct LuaLocal {
     pub reg: u8, // for luau
 }
 
-#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaVarArgInfo {
     pub has_arg: bool,
     pub needs_arg: bool,
@@ -185,14 +189,14 @@ impl LuaVarArgInfo {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct UpVal {
     pub on_stack: bool,
     pub id: u8,
     pub kind: u8,
 }
 
-#[derive(Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct LuaChunk {
     pub name: Vec<u8>,
     pub line_defined: u64,
@@ -501,6 +505,9 @@ pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]
 }
 
 pub fn parse(input: &[u8]) -> Result<LuaBytecode, String> {
+    if luau::is_luau(input) {
+        return luau::parse(input);
+    }
     if lua55::is_lua55(input) {
         return lua55::parse(input);
     }
@@ -549,5 +556,7 @@ pub const LUA52: LuaVersion = LuaVersion(0x52);
 pub const LUA53: LuaVersion = LuaVersion(0x53);
 pub const LUA54: LuaVersion = LuaVersion(0x54);
 pub const LUA55: LuaVersion = LuaVersion(0x55);
+/// Luau bytecode (Roblox); its own format and instruction set.
+pub const LUAU: LuaVersion = LuaVersion(0xB0);
 pub const LUAJ1: LuaVersion = LuaVersion(0x11);
 pub const LUAJ2: LuaVersion = LuaVersion(0x12);
