@@ -30,6 +30,7 @@ pub mod lua51;
 pub mod lua52;
 pub mod lua53;
 pub mod lua54;
+pub mod lua55;
 pub mod luajit;
 pub mod luau;
 pub mod utils;
@@ -500,6 +501,9 @@ pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]
 }
 
 pub fn parse(input: &[u8]) -> Result<LuaBytecode, String> {
+    if lua55::is_lua55(input) {
+        return lua55::parse(input);
+    }
     lua_bytecode(input).map(|x| x.1).map_err(|e| {
         format!(
             "{:#?}",
@@ -544,5 +548,6 @@ pub const LUA51: LuaVersion = LuaVersion(0x51);
 pub const LUA52: LuaVersion = LuaVersion(0x52);
 pub const LUA53: LuaVersion = LuaVersion(0x53);
 pub const LUA54: LuaVersion = LuaVersion(0x54);
+pub const LUA55: LuaVersion = LuaVersion(0x55);
 pub const LUAJ1: LuaVersion = LuaVersion(0x11);
 pub const LUAJ2: LuaVersion = LuaVersion(0x12);
