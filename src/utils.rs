@@ -34,6 +34,20 @@ impl LuaConstant {
         })
     }
 
+    /// LuaJIT FFI literal of a cdata constant: `1LL`, `1ULL`, `2.5i`.
+    pub fn cdata_literal(&self) -> Option<String> {
+        let num = |f: f64| {
+            if f.fract() == 0.0 && f.abs() < 1e15 { format!("{}", f as i64) } else { format!("{f:?}") }
+        };
+        Some(match self {
+            Self::Int64(v) => format!("{v}LL"),
+            Self::UInt64(v) => format!("{v}ULL"),
+            Self::Complex(re, im) if *re == 0.0 => format!("{}i", num(*im)),
+            Self::Complex(re, im) => format!("({} + {}i)", num(*re), num(*im)),
+            _ => return None,
+        })
+    }
+
     pub fn to_literal(&self) -> String {
         match self {
             Self::String(s) => {
@@ -55,6 +69,7 @@ impl LuaConstant {
             Self::Proto(i) => format!("function<{i}>"),
             Self::Table { .. } => "{}".into(),
             Self::Vector([x, y, z, _]) => format!("vector.create({x}, {y}, {z})"),
+            Self::Int64(_) | Self::UInt64(_) | Self::Complex(..) => self.cdata_literal().unwrap(),
             // Self::Imp(imp) => format!("imp<{imp}>"),
         }
     }

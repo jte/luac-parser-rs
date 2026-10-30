@@ -105,6 +105,10 @@ pub enum LuaConstant {
     Table(Box<ConstTable>),
     /// Luau vector constant (x, y, z, w).
     Vector([f64; 4]),
+    /// LuaJIT FFI cdata constants: `1LL`, `1ULL`, and complex `re + im*i`.
+    Int64(i64),
+    UInt64(u64),
+    Complex(f64, f64),
     // // for luau
     // Imp(u32),
 }
@@ -128,6 +132,9 @@ impl Serialize for LuaConstant {
             LuaConstant::Proto(p) => p.serialize(ser),
             LuaConstant::Table(t) => t.serialize(ser),
             LuaConstant::Vector(v) => v.serialize(ser),
+            LuaConstant::Int64(_) | LuaConstant::UInt64(_) | LuaConstant::Complex(..) => {
+                ser.serialize_str(&self.cdata_literal().unwrap())
+            }
         }
     }
 }
@@ -153,6 +160,9 @@ impl std::fmt::Debug for LuaConstant {
                 .finish(),
             Self::Proto(i) => f.debug_tuple("Proto").field(i).finish(),
             Self::Vector(v) => f.debug_tuple("Vector").field(v).finish(),
+            Self::Int64(_) | Self::UInt64(_) | Self::Complex(..) => {
+                f.debug_tuple("Cdata").field(&self.cdata_literal().unwrap()).finish()
+            }
 			Self::Table(inner) => {
 				let t = inner.as_ref();
 				f.debug_struct("Table")
@@ -243,7 +253,7 @@ impl LuaChunk {
     }
 
     pub fn flags(&self) -> luajit::ProtoFlags {
-        luajit::ProtoFlags::from_bits(self.flags).unwrap()
+        luajit::ProtoFlags::from_bits_truncate(self.flags)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -491,14 +501,13 @@ fn lua_number<'a>(header: &LuaHeader) -> impl Parser<&'a [u8], LuaNumber, ErrorT
 }
 
 pub fn lua_bytecode(input: &[u8]) -> IResult<&[u8], LuaBytecode, ErrorTree<&[u8]>> {
-    let (input, header) = alt((lua_header, luajit::lj_header))(input)?;
+    let (input, header) = lua_header(input)?;
     log::trace!("header: {header:?}");
     let (input, main_chunk) = match header.version() {
         LUA51 => lua51::lua_chunk(&header).parse(input)?,
         LUA52 => lua52::lua_chunk(&header).parse(input)?,
         LUA53 => lua53::lua_chunk(&header).parse(input)?,
         LUA54 => lua54::lua_chunk(&header).parse(input)?,
-        LUAJ1 | LUAJ2 => luajit::lj_chunk(&header).parse(input)?,
         _ => context("unsupported lua version", fail)(input)?,
     };
     Ok((input, LuaBytecode { header, main_chunk }))
@@ -510,6 +519,9 @@ pub fn parse(input: &[u8]) -> Result<LuaBytecode, String> {
     }
     if lua55::is_lua55(input) {
         return lua55::parse(input);
+    }
+    if luajit::is_luajit(input) {
+        return luajit::parse(input);
     }
     lua_bytecode(input).map(|x| x.1).map_err(|e| {
         format!(
